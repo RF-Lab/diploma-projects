@@ -49,7 +49,7 @@ for g = 1:gend
     fprintf('\nMean position as computed from %2.0f epochs:',qend)
     fprintf('\n\nX: %12.3f  Y: %12.3f  Z: %12.3f\n\n', me(1,1), me(2,1), me(3,1))
     
-    xyz_Mean_pos(:,gend)=me;%mean pos 22 epochs
+    xyz_Mean_pos(:,g)=me;%mean pos 22 epochs
     
     
     % figure(1);
@@ -109,7 +109,7 @@ for g = 1:gend
     fprintf('\nBaseline Components as Computed From %2.0f Epochs:',qend)
     fprintf('\n\nX: %12.3f  Y: %12.3f  Z: %12.3f', me1(1,1),me1(2,1),me1(3,1))
     
-    xyz_Base_comp(:,gend) = me1;%Baseline Components  22 Epochs
+    xyz_Base_comp(:,g) = me1;%Baseline Components  22 Epochs
     
     %figure(2);
     %plot((bases-bases(:,1)*ones(1,q))','linewidth',2)
