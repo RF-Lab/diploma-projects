@@ -6,9 +6,6 @@
 %        not the same at master and rover receivers. Therefore we
 %        must introduce a matching mechanism.
 
-%Kai Borre 27-07-2002
-%Copyright (c) by Kai Borre
-%$Revision: 1.0 $  $Date: 2002/07/27  $
 
 % Read RINEX ephemerides file and convert to internal Matlab format
 rinexe('SITE247J.01N','eph.dat');
@@ -19,7 +16,7 @@ Smean_Mean_pos=0;
 Smean_Base_comp=0;
 
 
-gend = 5; %цикл по повторяемости
+gend = 5; %ciclpo povtor
 
 for g = 1:gend
     
@@ -52,8 +49,7 @@ for g = 1:gend
     fprintf('\nMean position as computed from %2.0f epochs:',qend)
     fprintf('\n\nX: %12.3f  Y: %12.3f  Z: %12.3f\n\n', me(1,1), me(2,1), me(3,1))
     
-    xyz_Mean_pos(:,gend)=me;%Средняя позиция, рассчитанная по 22 эпохам
-    
+    xyz_Mean_pos(:,gend)=me;%mean pos 22 epochs
     
     
     % figure(1);
@@ -113,7 +109,7 @@ for g = 1:gend
     fprintf('\nBaseline Components as Computed From %2.0f Epochs:',qend)
     fprintf('\n\nX: %12.3f  Y: %12.3f  Z: %12.3f', me1(1,1),me1(2,1),me1(3,1))
     
-    xyz_Base_comp(:,gend) = me1;%Базовые компоненты, рассчитанные по 22 эпохам
+    xyz_Base_comp(:,gend) = me1;%Baseline Components  22 Epochs
     
     %figure(2);
     %plot((bases-bases(:,1)*ones(1,q))','linewidth',2)
@@ -133,16 +129,16 @@ for g = 1:gend
     % title('GDOP')
     
 end
-    %средние значения по xyz_Mean_pos
-    Smean_Mean_pos = mean(xyz_Mean_pos') %по сути это spread
-    %средние значения по xyz_Base_comp
-    Smean_Base_comp = mean(xyz_Base_comp')   %по сути это spread1
+    %mean value from xyz_Mean_pos
+    Smean_Mean_pos = mean(xyz_Mean_pos') % ==? spread
+    %mean value from РїРѕ xyz_Base_comp
+    Smean_Base_comp = mean(xyz_Base_comp')   %==?  spread1
 
     figure(1);
-    plot(rand_obs(:,1))  %график  rand_obs1=obs1+randn(7,1)*10
+    plot(rand_obs(:,1))  %  rand_obs=obs1+randn(7,1)*10
     
     figure(2);
-    plot(rand_obs1(:,1))  %график  rand_obs1=obs1+randn(7,1)*10
+    plot(rand_obs1(:,1))  %  rand_obs1=obs1+randn(7,1)*10
    
     
 print -deps easy4_2
