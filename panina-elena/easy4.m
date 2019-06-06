@@ -6,6 +6,9 @@
 %        not the same at master and rover receivers. Therefore we
 %        must introduce a matching mechanism.
 
+%Kai Borre 27-07-2002
+%Copyright (c) by Kai Borre
+%$Revision: 1.0 $  $Date: 2002/07/27  $
 
 % Read RINEX ephemerides file and convert to internal Matlab format
 rinexe('SITE247J.01N','eph.dat');
@@ -16,7 +19,7 @@ Smean_Mean_pos=0;
 Smean_Base_comp=0;
 
 
-gend = 5; %ciclpo povtor
+gend = 5; %цикл по повторяемости
 
 for g = 1:gend
     
@@ -26,7 +29,10 @@ for g = 1:gend
     [Obs_types1, ant_delta1, ifound_types1, eof11] = anheader(ofile1);
     NoObs_types1 = size(Obs_types1,2)/2;
     Pos = [];
-    Gdop = [];
+    rand_Pos =[];
+    Gdop = [];   
+    dif_xyz =[];
+    xyz_Mean_pos=[];
     % There are 22 epochs of data in ofile1
     qend = 22;
     
@@ -37,28 +43,31 @@ for g = 1:gend
         obs1 = grabdata(fid1, NoSv1, NoObs_types1);
         i = fobs_typ(Obs_types1,'C1');
         
-        rand_obs=obs1(:,i)+randn(7,1)*10;
-        
-        [pos, el, gdop] = recpo_ls(rand_obs(:,i),sats1,time1,Eph);
-        %[pos, el, gdop] = recpo_ls(obs1(:,i),sats1,time1,Eph);%obs1(:,i)+randn(7,1)*10
+        %without error
+        [pos, el, gdop] = recpo_ls(obs1(:,i),sats1,time1,Eph);%obs1(:,i)+randn(7,1)*10
         Gdop = [Gdop gdop];
         Pos = [Pos pos];
+        %with error
+        rand_obs=obs1(:,i)+randn(7,1)*10;
+        [rand_pos, el, gdop] = recpo_ls(rand_obs(:,i),sats1,time1,Eph);
+        rand_Pos = [rand_Pos rand_pos];           
     end
+    %without error
     me = mean(Pos,2);
     spread = std(Pos,1,2)
     fprintf('\nMean position as computed from %2.0f epochs:',qend)
     fprintf('\n\nX: %12.3f  Y: %12.3f  Z: %12.3f\n\n', me(1,1), me(2,1), me(3,1))
+    %with error
+    rand_me = mean(rand_Pos,2);
+    rand_spread = std(rand_Pos,1,2)
+    xyz_Mean_pos(:,g)=rand_me;%Mean pos from
     
-    xyz_Mean_pos(:,g)=me;%mean pos 22 epochs
+    %difference x-x_with_error...
+    dif_me(1,g)=abs(me(1,1)-rand_me(1,1));
+    dif_me(2,g)=abs(me(2,1)-rand_me(2,1));
+    dif_me(3,g)=abs(me(3,1)-rand_me(3,1)); 
+
     
-    
-    % figure(1);
-    % plot((Pos(1:3,:)-Pos(1:3,1)*ones(1,q))','linewidth',2)
-    % title(['Variation of Receiver Coordinates Over ',int2str(qend),' Epochs'],'fontsize',16)
-    % legend('X','Y','Z')
-    % xlabel('Epochs [1 s interval]','fontsize',16)
-    % ylabel('[m]','fontsize',16)
-    % print -depsc easy4_1
     
     % we need to close all open files and then open to read from the beginning
     fclose all;
@@ -76,6 +85,9 @@ for g = 1:gend
     master_pos = me;  % best possible estimate of master position
     bases = [];
     Omc = [];
+    
+    rand_bases = [];
+    rand_Omc = [];
     
     for q = 1:qend
         [time1, dt1, sats1, eof1] = fepoch_0(fid1);
@@ -95,56 +107,64 @@ for g = 1:gend
             ind = find(sats1(s) == sats2(:));
             obs2(s,1) = obsr(ind,1);
         end
-        % master observations: obs1, and rover observations: obs2
+        %master observations: obs1, and rover observations: obs2
         
-        rand_obs1=obs1+randn(7,1)*10;
-        
-        [omc,base] = baseline(master_pos,rand_obs1,obs2,sats1,time1,Eph);%obs1+randn(7,1)*10
-        %[omc,base] = baseline(master_pos,obs1,obs2,sats1,time1,Eph);%obs1+randn(7,1)*10
+        %without error
+        [omc,base] = baseline(master_pos,obs1,obs2,sats1,time1,Eph);%obs1+randn(7,1)*10
         Omc = [Omc, omc];
-        bases = [bases base];
+        bases = [bases base];                
+        %with error
+        rand_obs1=obs1+randn(7,1)*10;        
+        [rand_omc,rand_base] = baseline(master_pos,rand_obs1,obs2,sats1,time1,Eph);
+        rand_Omc = [rand_Omc, rand_omc];
+        rand_bases = [rand_bases rand_base];
+        
     end
+    %without error
     me1 = mean(bases,2);   
     spread1 = std(bases,1,2)
     fprintf('\nBaseline Components as Computed From %2.0f Epochs:',qend)
     fprintf('\n\nX: %12.3f  Y: %12.3f  Z: %12.3f', me1(1,1),me1(2,1),me1(3,1))
+    %with error
+    rand_me1 = mean(rand_bases,2);   
+    rand_spread1 = std(rand_bases,1,2)    
+    xyz_Base_comp(:,g) = rand_me1;
     
-    xyz_Base_comp(:,g) = me1;%Baseline Components  22 Epochs
-    
-    %figure(2);
-    %plot((bases-bases(:,1)*ones(1,q))','linewidth',2)
-    %title(['Variation of Baseline Components Over ',int2str(qend),' Epochs'],'fontsize',16)
-    %legend('X','Y','Z')
-    %xlabel('Epochs [1 s interval]','fontsize',16)
-    %ylabel('[m]','fontsize',16)
-    %set(gca,'fontsize',16)
-    %legend 
-    
-    
-    %break
-    
-    % figure(3);
-    % plot(Gdop,'linewidth',2)
-    % axis([1 length(Gdop) 0 5])
-    % title('GDOP')
-    
+    %difference x-x_with_error...
+    dif_me1(1,g)=abs(me1(1,1)-rand_me1(1,1));
+    dif_me1(2,g)=abs(me1(2,1)-rand_me1(2,1));
+    dif_me1(3,g)=abs(me1(3,1)-rand_me1(3,1)); 
+        
 end
-    %mean value from xyz_Mean_pos
-    Smean_Mean_pos = mean(xyz_Mean_pos') % ==? spread
-    %mean value from по xyz_Base_comp
-    Smean_Base_comp = mean(xyz_Base_comp')   %==?  spread1
-
+    %------------
+    
+    %mean difference cooordinat's ME
+    dif_xyz = mean(dif_me')  %mean array diff coordinat x-x_error   
+    %print difference x-x_with_error...
     figure(1);
-    plot(rand_obs(:,1))  %  rand_obs=obs1+randn(7,1)*10
+    plot(dif_me(:,:),'linewidth',2)
+    title(['Differens Coordinates Over ',int2str(qend),' Epochs'],'fontsize',16)
+    legend('X','Y','Z')
+    xlabel('Epochs [1 s interval]','fontsize',16)
+    ylabel('[m]','fontsize',16)
+    print -depsc easy4_1
     
+        %mean difference cooordinat's ME
+    dif1_xyz = mean(dif_me1')  %mean array diff coordinat x-x_error   
+    %print difference x-x_with_error...
     figure(2);
-    plot(rand_obs1(:,1))  %  rand_obs1=obs1+randn(7,1)*10
-   
-    
-print -deps easy4_2
+    plot(dif_me1(:,:),'linewidth',2)
+    title(['Differens Coordinates Over ',int2str(qend),' Epochs'],'fontsize',16)
+    legend('X','Y','Z')
+    xlabel('Epochs [1 s interval]','fontsize',16)
+    ylabel('[m]','fontsize',16)
+    print -depsc easy4_2
+
 
 
 
 
 %%%%%%%%%%%%%%%%%%% end easy4.m %%%%%%%%%%%%%%%
+
+
 
