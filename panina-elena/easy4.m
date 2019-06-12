@@ -13,158 +13,150 @@
 % Read RINEX ephemerides file and convert to internal Matlab format
 rinexe('SITE247J.01N','eph.dat');
 Eph = get_eph('eph.dat');
-
 %----
-Smean_Mean_pos=0;
-Smean_Base_comp=0;
+sr_kv = 0; %для вычисления значения ср.кв.
 
-
-gend = 5; %С†РёРєР» РїРѕ РїРѕРІС‚РѕСЂСЏРµРјРѕСЃС‚Рё
-
-for g = 1:gend
+mean_dif_me = [];%Receiver - Запись ср.кв. для N кол-ва повторов на текущей сигме 
+mean_dif_me1 = [];%Baseline - Запись ср.кв. для N кол-ва повторов на текущей сигме
+zn_sigm = []; %для записи значений сигмы (для вывода на график)
     
-    % We identify the master observation file and open it
-    ofile1 = 'SITE24~1.01O';
-    fid1 = fopen(ofile1,'rt');
-    [Obs_types1, ant_delta1, ifound_types1, eof11] = anheader(ofile1);
-    NoObs_types1 = size(Obs_types1,2)/2;
-    Pos = [];
-    rand_Pos =[];
-    Gdop = [];   
-    dif_xyz =[];
-    xyz_Mean_pos=[];
-    % There are 22 epochs of data in ofile1
-    qend = 22;
+sigm = 5;
+for sigm = 5:1:8 % цикл по изменению сигмы(от 5 до 8)
+
+    mean_sigm = [];    
+    dif_me = [];%Receiver - записываем ВСЕ XYZ значения для каждой итерации повтора рассчета [3*gend]
+    dif_me1 = [];%Baseline - записываем ВСЕ XYZ значения для каждой итерации повтора рассчета [3*gend]
     
-    for q = 1:qend
-        [time1, dt1, sats1, eof1] = fepoch_0(fid1);
-        NoSv1 = size(sats1,1);
-        % We pick the observed C1 pseudoranges
-        obs1 = grabdata(fid1, NoSv1, NoObs_types1);
-        i = fobs_typ(Obs_types1,'C1');
+    gend = 100; %цикл по количеству повторов рассчета
+    for g = 1:gend
+        % We identify the master observation file and open it
+        ofile1 = 'SITE24~1.01O';
+        fid1 = fopen(ofile1,'rt');
+        [Obs_types1, ant_delta1, ifound_types1, eof11] = anheader(ofile1);
+        NoObs_types1 = size(Obs_types1,2)/2;
+        Pos = [];
+        rand_Pos =[];
+        Gdop = [];
         
-        %without error
-        [pos, el, gdop] = recpo_ls(obs1(:,i),sats1,time1,Eph);%obs1(:,i)+randn(7,1)*10
-        Gdop = [Gdop gdop];
-        Pos = [Pos pos];
-        %with error
-        rand_obs=obs1(:,i)+randn(7,1)*10;
-        [rand_pos, el, gdop] = recpo_ls(rand_obs(:,i),sats1,time1,Eph);
-        rand_Pos = [rand_Pos rand_pos];           
-    end
-    %without error
-    me = mean(Pos,2);
-    spread = std(Pos,1,2)
-    fprintf('\nMean position as computed from %2.0f epochs:',qend)
-    fprintf('\n\nX: %12.3f  Y: %12.3f  Z: %12.3f\n\n', me(1,1), me(2,1), me(3,1))
-    %with error
-    rand_me = mean(rand_Pos,2);
-    rand_spread = std(rand_Pos,1,2)
-    xyz_Mean_pos(:,g)=rand_me;%Mean pos from
-    
-    %difference x-x_with_error...
-    dif_me(1,g)=abs(me(1,1)-rand_me(1,1));
-    dif_me(2,g)=abs(me(2,1)-rand_me(2,1));
-    dif_me(3,g)=abs(me(3,1)-rand_me(3,1)); 
-
-    
-    
-    % we need to close all open files and then open to read from the beginning
-    fclose all;
-    
-    ofile1 = 'SITE24~1.01O';
-    fid1 = fopen(ofile1,'rt');
-    [Obs_types1, ant_delta1, ifound_types1, eof11] = anheader(ofile1);
-    NoObs_types1 = size(Obs_types1,2)/2;
-    % Next we include the rover and identify the rover
-    % observation file and open it
-    ofile2 = 'SITE247j.01O';
-    fid2 = fopen(ofile2,'rt');
-    [Obs_types2, ant_delta2, ifound_types2, eof12] = anheader(ofile2);
-    NoObs_types2 = size(Obs_types2,2)/2;
-    master_pos = me;  % best possible estimate of master position
-    bases = [];
-    Omc = [];
-    
-    rand_bases = [];
-    rand_Omc = [];
-    
-    for q = 1:qend
-        [time1, dt1, sats1, eof1] = fepoch_0(fid1);
-        [time2, dt2, sats2, eof2] = fepoch_0(fid2);
-        if time1 ~= time2
-            disp('Epochs not corresponding')
-            break
-        end;
-        NoSv1 = size(sats1,1);
-        NoSv2 = size(sats2,1);
-        % We pick the observations
-        obsm = grabdata(fid1, NoSv1, NoObs_types1);
-        obsr = grabdata(fid2, NoSv2, NoObs_types2);
-        i = fobs_typ(Obs_types1,'C1');
-        obs1 = obsm(:,i);
-        for s = 1:NoSv1
-            ind = find(sats1(s) == sats2(:));
-            obs2(s,1) = obsr(ind,1);
+        error = randn(7,1)*sigm; %ШУМ ДЛЯ ДОБАВЛЕНИЯ!!!
+                
+        % There are 22 epochs of data in ofile1
+        qend = 22;
+        for q = 1:qend %по эпоам
+            [time1, dt1, sats1, eof1] = fepoch_0(fid1);
+            NoSv1 = size(sats1,1);
+            % We pick the observed C1 pseudoranges
+            obs1 = grabdata(fid1, NoSv1, NoObs_types1);
+            i = fobs_typ(Obs_types1,'C1');
+            
+            %without error БЕЗ ШУМА
+            [pos, el, gdop] = recpo_ls(obs1(:,i),sats1,time1,Eph);%obs1(:,i)+randn(7,1)*10
+            Gdop = [Gdop gdop];
+            Pos = [Pos pos];
+            %with error  ДОБАВЛЯЕМ ШУМ
+            rand_obs=obs1(:,i)+error;
+            [rand_pos, el, gdop] = recpo_ls(rand_obs(:,i),sats1,time1,Eph);
+            rand_Pos = [rand_Pos rand_pos];
         end
-        %master observations: obs1, and rover observations: obs2
         
         %without error
-        [omc,base] = baseline(master_pos,obs1,obs2,sats1,time1,Eph);%obs1+randn(7,1)*10
-        Omc = [Omc, omc];
-        bases = [bases base];                
+        me = mean(Pos,2); % Получаем координаты xyz        
         %with error
-        rand_obs1=obs1+randn(7,1)*10;        
-        [rand_omc,rand_base] = baseline(master_pos,rand_obs1,obs2,sats1,time1,Eph);
-        rand_Omc = [rand_Omc, rand_omc];
-        rand_bases = [rand_bases rand_base];
+        rand_me = mean(rand_Pos,2);% Получаем координаты xyz
         
+        %записываем значения для каждой итерации повтора рассчета [3*gend]
+        dif_me = [dif_me rand_me];        
+        %------------        
+        % we need to close all open files and then open to read from the beginning
+        fclose all;
+        
+        ofile1 = 'SITE24~1.01O';
+        fid1 = fopen(ofile1,'rt');
+        [Obs_types1, ant_delta1, ifound_types1, eof11] = anheader(ofile1);
+        NoObs_types1 = size(Obs_types1,2)/2;
+        % Next we include the rover and identify the rover
+        % observation file and open it
+        ofile2 = 'SITE247j.01O';
+        fid2 = fopen(ofile2,'rt');
+        [Obs_types2, ant_delta2, ifound_types2, eof12] = anheader(ofile2);
+        NoObs_types2 = size(Obs_types2,2)/2;
+        master_pos = me;  % best possible estimate of master position
+        bases = [];
+        Omc = [];
+        
+        rand_bases = [];
+        rand_Omc = [];
+        
+        for q = 1:qend
+            [time1, dt1, sats1, eof1] = fepoch_0(fid1);
+            [time2, dt2, sats2, eof2] = fepoch_0(fid2);
+            if time1 ~= time2
+                disp('Epochs not corresponding')
+                break
+            end;
+            NoSv1 = size(sats1,1);
+            NoSv2 = size(sats2,1);
+            % We pick the observations
+            obsm = grabdata(fid1, NoSv1, NoObs_types1);
+            obsr = grabdata(fid2, NoSv2, NoObs_types2);
+            i = fobs_typ(Obs_types1,'C1');
+            obs1 = obsm(:,i);
+            for s = 1:NoSv1
+                ind = find(sats1(s) == sats2(:));
+                obs2(s,1) = obsr(ind,1);
+            end
+            %master observations: obs1, and rover observations: obs2
+            
+            %without error БЕЗ ШУМА
+            [omc,base] = baseline(master_pos,obs1,obs2,sats1,time1,Eph);%obs1+randn(7,1)*10
+            Omc = [Omc, omc];
+            bases = [bases base];
+            %with error ДОБАВЛЯЕМ ШУМ
+            rand_obs1=obs1+error;
+            [rand_omc,rand_base] = baseline(master_pos,rand_obs1,obs2,sats1,time1,Eph);
+            rand_Omc = [rand_Omc, rand_omc];
+            rand_bases = [rand_bases rand_base];
+        end
+        %without error
+        me1 = mean(bases,2);%Получаем координаты xyz        
+        %with error
+        rand_me1 = mean(rand_bases,2);%Получаем координаты xyz
+        
+        %записываем значения для каждой итерации повтора рассчета [3*gend]
+        dif_me1 = [dif_me1 rand_me1];
+                
     end
-    %without error
-    me1 = mean(bases,2);   
-    spread1 = std(bases,1,2)
-    fprintf('\nBaseline Components as Computed From %2.0f Epochs:',qend)
-    fprintf('\n\nX: %12.3f  Y: %12.3f  Z: %12.3f', me1(1,1),me1(2,1),me1(3,1))
-    %with error
-    rand_me1 = mean(rand_bases,2);   
-    rand_spread1 = std(rand_bases,1,2)    
-    xyz_Base_comp(:,g) = rand_me1;
+        %Receiver - считаем среднее квадр. для N кол-ва повторов на текущей сигме
+        sr_kv = std(dif_me,1,2);        
+        %Receiver - Запись ср.кв. для N кол-ва повторов на текущей сигме
+        mean_dif_me = [mean_dif_me sr_kv];
     
-    %difference x-x_with_error...
-    dif_me1(1,g)=abs(me1(1,1)-rand_me1(1,1));
-    dif_me1(2,g)=abs(me1(2,1)-rand_me1(2,1));
-    dif_me1(3,g)=abs(me1(3,1)-rand_me1(3,1)); 
+        %Baseline - считаем среднее квадр. для N кол-ва повторов на текущей сигме
+        sr_kv1 = std(dif_me1,1,2);        
+        %Baseline - Запись ср.кв. для N кол-ва повторов на текущей сигме
+        mean_dif_me1 = [mean_dif_me1 sr_kv1];    
         
+        %копим значения сигмы (чтобы график вывести)
+        zn_sigm = [zn_sigm sigm];
 end
-    %------------
+    %------ГРАФИКИ
+     figure(1);
+     % по оси х значения сигмы, по у ср.кв.
+     plot(zn_sigm, mean_dif_me(1:3,:),'linewidth',2)
+     title('Variation of Receiver ','fontsize',16)
+     legend('X','Y','Z')
+     xlabel('Sigma','fontsize',16)
+     ylabel('[m]','fontsize',16)
+     print -depsc easy4_1
+     
+     figure(2);
+     % по оси х значения сигмы, по у ср.кв.
+     plot(zn_sigm, mean_dif_me1(1:3,:),'linewidth',2)
+     title('Variation of Baseline Components ','fontsize',16)
+     legend('X','Y','Z')
+     xlabel('Sigma','fontsize',16)
+     ylabel('[m]','fontsize',16)
+     print -depsc easy4_2
     
-    %mean difference cooordinat's ME
-    dif_xyz = mean(dif_me')  %mean array diff coordinat x-x_error   
-    %print difference x-x_with_error...
-    figure(1);
-    plot(dif_me(:,:),'linewidth',2)
-    title(['Differens Coordinates Over ',int2str(qend),' Epochs'],'fontsize',16)
-    legend('X','Y','Z')
-    xlabel('Epochs [1 s interval]','fontsize',16)
-    ylabel('[m]','fontsize',16)
-    print -depsc easy4_1
-    
-        %mean difference cooordinat's ME
-    dif1_xyz = mean(dif_me1')  %mean array diff coordinat x-x_error   
-    %print difference x-x_with_error...
-    figure(2);
-    plot(dif_me1(:,:),'linewidth',2)
-    title(['Differens Coordinates Over ',int2str(qend),' Epochs'],'fontsize',16)
-    legend('X','Y','Z')
-    xlabel('Epochs [1 s interval]','fontsize',16)
-    ylabel('[m]','fontsize',16)
-    print -depsc easy4_2
-
-
-
-
 
 %%%%%%%%%%%%%%%%%%% end easy4.m %%%%%%%%%%%%%%%
-
-
-
